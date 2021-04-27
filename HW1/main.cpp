@@ -298,15 +298,23 @@ void ChangeSize(GLFWwindow* window, int width, int height)
 {
 	glViewport(0, 0, width, height);
 	// [TODO] change your aspect ratio in both perspective and orthogonal view
-	
+	// cout << "width / height: " << width << "," << height << endl;
 	proj.aspect = width / height;
+	float ratio =  width / height;
+
 	if (cur_proj_mode == Perspective) {
 		GLfloat f = cos((proj.fovy / 2) / 180.0 * PI) / sin((proj.fovy / 2) / 180.0 * PI);
 		project_matrix = { f / proj.aspect,0,0,0,
-		0,f,0,0,
-		0,0,-1 * (proj.farClip + proj.nearClip) / (proj.farClip - proj.nearClip),-2 * (proj.farClip * proj.nearClip) / (proj.farClip - proj.nearClip),
-		0,0,-1,0 };
+			0,f,0,0,
+			0,0,-1 * (proj.farClip + proj.nearClip) / (proj.farClip - proj.nearClip),-2 * (proj.farClip * proj.nearClip) / (proj.farClip - proj.nearClip),
+			0,0,-1,0 };
+	} else if (cur_proj_mode == Orthogonal) {
+		project_matrix = { 2 / (proj.right - proj.left) *1 , 0, 0, -1 * (proj.right + proj.left) / (proj.right - proj.left),
+			0,2 / (proj.top - proj.bottom) * 1 ,0,-1 * (proj.top + proj.bottom) / (proj.top - proj.bottom),
+			0,0,-2 / (proj.farClip - proj.nearClip),-1 * (proj.farClip + proj.nearClip) / (proj.farClip - proj.nearClip),
+			0,0,0,1 };
 	}
+	
 }
 
 void drawPlane()
@@ -387,15 +395,15 @@ void RenderScene(void) {
 
 	Matrix4 T, R, S;
 	// [TODO] update translation, rotation and scaling
-	S = scaling(models[cur_idx].scale);
-	R = rotate(models[cur_idx].rotation);
 	T = translate(models[cur_idx].position);
+	R = rotate(models[cur_idx].rotation);
+	S = scaling(models[cur_idx].scale);
 
 	Matrix4 MVP;
 	GLfloat mvp[16];
 
 	// [TODO] multiply all the matrix
-	MVP = project_matrix * view_matrix*S*T*R;
+	MVP = project_matrix * view_matrix * S * T * R;
 	// [TODO] row-major ---> column-major
 
 	mvp[0] = 1;  mvp[4] = 0;   mvp[8] = 0;    mvp[12] = 0;
@@ -471,8 +479,8 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	else if (key == GLFW_KEY_I && action == GLFW_PRESS) {
 		cout  << "******************************" << endl;
 		cout << "Translation Matrix: " << models[cur_idx].position.x << "," << models[cur_idx].position.y << "," << models[cur_idx].position.z << endl;
-		cout << "Rotation Matrix: " << models[cur_idx].scale.x << "," << models[cur_idx].scale.y << "," << models[cur_idx].scale.z << endl;
-		cout << "Scaling Matrix: " << models[cur_idx].rotation.x << "," << models[cur_idx].rotation.y << "," << models[cur_idx].rotation.z << endl;
+		cout << "Scaling Matrix: " << models[cur_idx].scale.x << "," << models[cur_idx].scale.y << "," << models[cur_idx].scale.z << endl;
+		cout << "Rotation Matrix: " << models[cur_idx].rotation.x << "," << models[cur_idx].rotation.y << "," << models[cur_idx].rotation.z << endl;
 		cout << "Viewing Matrix: " << endl;
 		cout << view_matrix << endl;
 		cout << "Projection Matrix: " << endl;
@@ -849,6 +857,7 @@ void initParameter()
 	proj.fovy = 80;
 	proj.aspect = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
 
+
 	main_camera.position = Vector3(0.0f, 0.0f, 2.0f);
 	main_camera.center = Vector3(0.0f, 0.0f, 0.0f);
 	main_camera.up_vector = Vector3(0.0f, 1.0f, 0.0f);
@@ -907,7 +916,7 @@ int main(int argc, char **argv)
 
 
 	// create window
-	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Student ID HW1", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "106070038 HW1", NULL, NULL);
 	
 	if (window == NULL)
 	{
