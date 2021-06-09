@@ -32,6 +32,40 @@ bool mouse_pressed = false;
 int starting_press_x = -1;
 int starting_press_y = -1;
 
+// hw3
+bool mag_mode = true;
+bool min_mode = true;
+
+// hw2
+// Some constant
+const float PI = 3.1415926;
+int shininess = 64;
+int light_idx = 0;
+int vertex_or_perpixel = 0;
+
+GLuint iLocLightIdx;
+GLuint iLocKa;
+GLuint iLocKd;
+GLuint iLocKs;
+GLuint iLocShininess;
+GLuint iLocdiff_strength;
+GLuint iLocview_pos;
+GLuint iLocMVP;
+GLuint iLocisEye;
+
+
+GLuint iLocTrans;
+struct iLocLightInfo
+{
+    GLuint dir_pos;
+    GLuint point_pos;
+    GLuint spot_pos;
+    //GLuint diffstrength;
+    GLuint cutoff;
+
+
+}iLocLightInfo;
+
 enum TransMode
 {
 	GeoTranslation = 0,
@@ -40,18 +74,17 @@ enum TransMode
 	ViewCenter = 3,
 	ViewEye = 4,
 	ViewUp = 5,
+    Lighting = 6,
+    Light_ED = 7,
+    Shininess = 8,
 };
 
 
 vector<string> filenames; // .obj filename list
 
-typedef struct _Offset {
-	GLfloat x;
-	GLfloat y;
-	struct _Offset(GLfloat _x, GLfloat _y) {
-		x = _x;
-		y = _y;
-	};
+typedef struct {
+    GLfloat x;
+    GLfloat y;
 } Offset;
 
 typedef struct
@@ -68,6 +101,18 @@ typedef struct
 
 } PhongMaterial;
 
+// hw3
+struct LightInfo
+{
+ Vector3 dir_pos = Vector3(1.0f, 1.0f, 1.0f);
+ Vector3 point_pos = Vector3(0.0f, 2.0f, 1.0f);
+ Vector3 spot_pos = Vector3(0.0f, 0.0f, 2.0f);
+ float diffstrength = 1.0;
+ float cutoff = 30.0 ;
+ //int shininess = 64;
+
+}lightInfo;
+
 typedef struct
 {
 	GLuint vao;
@@ -80,6 +125,17 @@ typedef struct
 	GLuint p_texCoord;
 	PhongMaterial material;
 	int indexCount;
+    
+    // hw3
+    GLuint tex0 = 0;
+    GLuint tex1 = 0;
+    GLuint tex2 = 0;
+    GLuint tex3 = 0;
+    GLuint tex4 = 0;
+    GLuint tex5 = 0;
+    GLuint tex6 = 0;
+    GLuint tex7 = 0;
+    
 } Shape;
 
 struct model
@@ -93,6 +149,9 @@ struct model
 	bool hasEye;
 	GLint max_eye_offset = 7;
 	GLint cur_eye_offset_idx = 0;
+    
+    // hw3
+    LightInfo lightInfos;
 };
 vector<model> models;
 
@@ -129,6 +188,8 @@ Shape m_shpae;
 int cur_idx = 0; // represent which model should be rendered now
 vector<string> model_list{ "../TextureModels/Fushigidane.obj", "../TextureModels/Mew.obj","../TextureModels/Nyarth.obj","../TextureModels/Zenigame.obj", "../TextureModels/laurana500.obj", "../TextureModels/Nala.obj", "../TextureModels/Square.obj" };
 
+int eye_idx = 0; // represent which eye should be rendered now
+
 GLuint program;
 
 
@@ -136,6 +197,17 @@ GLuint program;
 GLuint iLocP;
 GLuint iLocV;
 GLuint iLocM;
+
+// hw3
+GLuint iLocTex0;
+GLuint iLocTex1;
+GLuint iLocTex2;
+GLuint iLocTex3;
+GLuint iLocTex4;
+GLuint iLocTex5;
+GLuint iLocTex6;
+GLuint iLocTex7;
+
 
 static GLvoid Normalize(GLfloat v[3])
 {
@@ -337,21 +409,86 @@ void RenderScene(int per_vertex_or_per_pixel) {
 	T = translate(models[cur_idx].position);
 	R = rotate(models[cur_idx].rotation);
 	S = scaling(models[cur_idx].scale);
+    
+    // hw3
+    Matrix4 Trans;
+    Matrix4 MVP;
+    GLfloat mvp[16];
+    GLfloat trans[16];
+    trans[0] = Trans[0];  trans[4] = Trans[1];   trans[8] = Trans[2];    trans[12] = Trans[3];
+    trans[1] = Trans[4];  trans[5] = Trans[5];   trans[9] = Trans[6];    trans[13] = Trans[7];
+    trans[2] = Trans[8];  trans[6] = Trans[9];   trans[10] = Trans[10];   trans[14] = Trans[11];
+    trans[3] = Trans[12]; trans[7] = Trans[13];  trans[11] = Trans[14];   trans[15] = Trans[15];
+    mvp[0] = 1;  mvp[4] = 0;   mvp[8] = 0;    mvp[12] = 0;
+    mvp[1] = 0;  mvp[5] = 1;   mvp[9] = 0;    mvp[13] = 0;
+    mvp[2] = 0;  mvp[6] = 0;   mvp[10] = 1;   mvp[14] = 0;
+    mvp[3] = 0; mvp[7] = 0;  mvp[11] = 0;   mvp[15] = 1;
 
+    mvp[0] = MVP[0];  mvp[4] = MVP[1];   mvp[8] = MVP[2];    mvp[12] = MVP[3];
+    mvp[1] = MVP[4];  mvp[5] = MVP[5];   mvp[9] = MVP[6];    mvp[13] = MVP[7];
+    mvp[2] = MVP[8];  mvp[6] = MVP[9];   mvp[10] = MVP[10];   mvp[14] = MVP[11];
+    mvp[3] = MVP[12]; mvp[7] = MVP[13];  mvp[11] = MVP[14];   mvp[15] = MVP[15];
+
+    glUniformMatrix4fv(iLocMVP, 1, GL_FALSE, mvp);
+    glUniformMatrix4fv(iLocTrans, 1, GL_FALSE, trans);
+    
 	// render object
 	Matrix4 model_matrix = T * R * S;
 	glUniformMatrix4fv(iLocM, 1, GL_FALSE, model_matrix.getTranspose());
 	glUniformMatrix4fv(iLocV, 1, GL_FALSE, view_matrix.getTranspose());
 	glUniformMatrix4fv(iLocP, 1, GL_FALSE, project_matrix.getTranspose());
 
+    // hw3
+    glUniform1f(iLocdiff_strength, models[cur_idx].lightInfos.diffstrength);
+    glUniform1i(iLocShininess, shininess);
+    glUniform1i(iLocLightIdx, light_idx);
+    glUniform1i(vertex_or_perpixel, per_vertex_or_per_pixel);
+
+    glUniform3fv(iLocview_pos, 1, &(main_camera.position[0]));
+    glUniform3fv(iLocLightInfo.dir_pos, 1, &(models[cur_idx].lightInfos.dir_pos[0]));
+
+    glUniform1i(iLocTex0, 0);
+    glUniform1i(iLocTex1, 0);
+    glUniform1i(iLocTex2, 0);
+    glUniform1i(iLocTex3, 0);
+    glUniform1i(iLocTex4, 0);
+    glUniform1i(iLocTex5, 0);
+    glUniform1i(iLocTex6, 0);
+    glUniform1i(iLocTex7, 0);
+    
 	for (int i = 0; i < models[cur_idx].shapes.size(); i++) 
 	{
+        
 		glBindVertexArray(models[cur_idx].shapes[i].vao);
+        
+        // hw3
+        glUniform3fv(iLocKa, 1, &(models[cur_idx].shapes[i].material.Ka[0]));
+        glUniform3fv(iLocKd, 1, &(models[cur_idx].shapes[i].material.Kd[0]));
+        glUniform3fv(iLocKs, 1, &(models[cur_idx].shapes[i].material.Ks[0]));
+        glUniform1i(iLocisEye, models[cur_idx].shapes[i].material.isEye);
 
 		// [TODO] Bind texture and modify texture filtering & wrapping mode
 		// Hint: glActiveTexture, glBindTexture, glTexParameteri
 
-		glDrawArrays(GL_TRIANGLES, 0, models[cur_idx].shapes[i].vertex_count);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, models[cur_idx].shapes[i].material.diffuseTexture);
+
+        if (mag_mode) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        } else if (!mag_mode) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
+        if (min_mode) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        } else if (!min_mode) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        }
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        
+        glBindTexture(GL_TEXTURE_2D, models[cur_idx].shapes[i].material.diffuseTexture);
+        
+        glDrawArrays(GL_TRIANGLES, 0, models[cur_idx].shapes[i].vertex_count);
 	}
 }
 
@@ -395,6 +532,16 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		case GLFW_KEY_R:
 			cur_trans_mode = GeoRotation;
 			break;
+        case GLFW_KEY_L:     // switch between directional/point/spot light
+            if(light_idx ==2) {
+                light_idx = 0;
+            } else {
+                light_idx ++;
+            }
+        case  GLFW_KEY_K: // switch to light editing mode
+            cur_trans_mode = Light_ED;
+        case GLFW_KEY_J:  // switch to shininess editing mode
+            cur_trans_mode = Shininess;
 		case GLFW_KEY_E:
 			cur_trans_mode = ViewEye;
 			break;
@@ -407,6 +554,21 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		case GLFW_KEY_I:
 			cout << endl;
 			break;
+        case GLFW_KEY_G:
+            cout << "nearest / linear sampling" << endl;
+            mag_mode = !mag_mode;
+            break;
+         case GLFW_KEY_B:
+            cout << "nearest / linear_mipmap_linear sampling" << endl;
+            min_mode = !min_mode;
+            break;
+        // left/right
+        case GLFW_KEY_RIGHT:
+            eye_idx = (eye_idx + 1) % 8;
+            break;
+        case GLFW_KEY_LEFT:
+            eye_idx = (eye_idx - 1 + 8) % 8;
+            break;
 		default:
 			break;
 		}
@@ -718,6 +880,11 @@ GLuint LoadTextureImage(string image_path)
 
 		// [TODO] Bind the image to texture
 		// Hint: glGenTextures, glBindTexture, glTexImage2D, glGenerateMipmap
+        // hw3
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,  data);
+        glGenerateMipmap(GL_TEXTURE_2D);
 
 		// free the image from memory after binding to texture
 		stbi_image_free(data);
@@ -728,6 +895,8 @@ GLuint LoadTextureImage(string image_path)
 		cout << "LoadTextureImage: Cannot load image from " << image_path << endl;
 		return -1;
 	}
+    // hw3
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 vector<Shape> SplitShapeByMaterial(vector<GLfloat>& vertices, vector<GLfloat>& colors, vector<GLfloat>& normals, vector<GLfloat>& textureCoords, vector<int>& material_id, vector<PhongMaterial>& materials)
@@ -785,6 +954,7 @@ vector<Shape> SplitShapeByMaterial(vector<GLfloat>& vertices, vector<GLfloat>& c
 			glBufferData(GL_ARRAY_BUFFER, m_textureCoords.size() * sizeof(GL_FLOAT), &m_textureCoords.at(0), GL_STATIC_DRAW);
 			glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
+            // push to shader
 			glEnableVertexAttribArray(0);
 			glEnableVertexAttribArray(1);
 			glEnableVertexAttribArray(2);
@@ -846,12 +1016,25 @@ void LoadTexturedModels(string model_path)
 		material.Ks = Vector3(materials[i].specular[0], materials[i].specular[1], materials[i].specular[2]);
 
 		material.diffuseTexture = LoadTextureImage(base_dir + string(materials[i].diffuse_texname));
+        
+        material.offsets = {{0.0,0.75},{0.0,0.5},{0.0,0.25},{0.0,0.0},{0.5,0.75},{0.5,0.5},{0.5,0.25},{0.5,0.0}};
+        
+        if (i==0){
+            // cout << "isEye" << endl;
+            material.isEye = 1;
+        } else {
+            material.isEye = 0;
+        }
+            
+        cout << "dir: " << string(materials[i].diffuse_texname) << endl;
+        
 		if (material.diffuseTexture == -1)
 		{
 			cout << "LoadTexturedModels: Fail to load model's material " << i << endl;
 			system("pause");
 			
 		}
+        
 		
 		allMaterial.push_back(material);
 	}
@@ -903,7 +1086,37 @@ void setUniformVariables()
 	iLocV = glGetUniformLocation(program, "um4v");
 	iLocM = glGetUniformLocation(program, "um4m");
 
+    vertex_or_perpixel = glGetUniformLocation(program, "vertex_or_perpixel");
+    iLocLightIdx = glGetUniformLocation(program, "lightIdx");
+
+    
+    // hw3
+    iLocMVP = glGetUniformLocation(program, "mvp");
+    iLocTrans = glGetUniformLocation(program,"trans");
+    iLocKa = glGetUniformLocation(program, "Ka");
+    iLocKd = glGetUniformLocation(program, "Kd");
+    iLocKs = glGetUniformLocation(program, "Ks");
+    iLocisEye = glGetUniformLocation(program, "isEye");
+
+    iLocview_pos = glGetUniformLocation(program, "view_pos");
+    iLocShininess = glGetUniformLocation(program, "shininess");
+    iLocLightInfo.dir_pos = glGetUniformLocation(program, "light_dir_position");
+    iLocdiff_strength =glGetUniformLocation(program, "diffusestrength");
+    //offsets = glGetUniformLocation(program, "offsets");
+    
 	// [TODO] Get uniform location of texture
+    iLocTex0 = glGetUniformLocation(program,"tex0");
+    iLocTex1 = glGetUniformLocation(program,"tex1");
+    iLocTex2 = glGetUniformLocation(program,"tex2");
+    iLocTex3 = glGetUniformLocation(program,"tex3");
+    iLocTex4 = glGetUniformLocation(program,"tex4");
+    iLocTex5 = glGetUniformLocation(program,"tex5");
+    iLocTex6 = glGetUniformLocation(program,"tex6");
+    iLocTex7 = glGetUniformLocation(program,"tex7");
+    
+    // eye
+    eye_idx = glGetUniformLocation(program,"eye_idx");
+    
 }
 
 void setupRC()
@@ -955,7 +1168,7 @@ int main(int argc, char **argv)
 
     
     // create window
-	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Student ID HW3", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "106070038 HW3", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
